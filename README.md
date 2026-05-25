@@ -10,54 +10,32 @@ This tool combines the native Microsoft uninstaller with the **Integrated Servic
 
 ---
 
-## Will this work on every Windows PC?
+## Important: this does NOT work on every Windows machine
 
-**Honestly: no.** No third-party Edge remover can guarantee 100% success on every machine. This script is designed for **Windows 10 and Windows 11 (x64)** on standard desktop/laptop installs.
+**No third-party Edge remover can guarantee success on every PC.** This project targets a specific, well-supported environment:
 
-| Scenario | Expected result |
-|----------|-----------------|
-| Windows 11 / Windows 10 (64-bit), local admin | Works in most cases |
-| Already patched `IntegratedServicesRegionPolicySet.json` | Works; skips duplicate patch |
-| Ghost entry in Settings after files deleted | Cleaned automatically |
-| Windows Update later | May restore Edge or reset the policy JSON — re-run script |
-| **Windows S Mode** | **Not supported** (blocks unsigned scripts) |
-| **ARM64 Windows** | May work; less tested |
-| **Enterprise / MDM-managed** | Group Policy may override or reinstall Edge |
-| Apps using **WebView2** (Teams, some installers) | Keep WebView2 unless you pass `-RemoveWebView2` |
+| Supported target | Notes |
+|------------------|-------|
+| **Windows 10 / 11 x64** | Primary supported platform |
+| **Local Administrator** | Script self-elevates via UAC |
+| **Non-S Mode** | S Mode blocks unsigned/local scripts |
 
-If uninstall returns exit code **532**, **reboot** and run the script again, or use **Settings → Apps → Microsoft Edge → Uninstall** (button should no longer be grayed out after the policy patch).
+| Not supported or unreliable | Notes |
+|-----------------------------|-------|
+| **Windows S Mode** | Script execution is blocked |
+| **Enterprise / MDM-managed PCs** | Group Policy or Intune may override registry changes and reinstall Edge |
+| **ARM64 Windows** | May work; not fully validated |
+| **Windows Server** | Edge may not be preinstalled; behavior varies |
+
+**Windows Update may restore Microsoft Edge** or reset `IntegratedServicesRegionPolicySet.json` after a major upgrade. Re-run this script if Edge returns.
 
 Method reference: [CyberCPU Tech — Uninstall Microsoft Edge For Good](https://www.youtube.com/watch?v=nE5avDD2rnY)
 
 ---
 
-## What it removes
+## Recommended: clone and run locally
 
-- Microsoft Edge (Chromium) browser
-- Edge Update services (`edgeupdate`, `edgeupdatem`)
-- Edge scheduled tasks
-- Edge / EdgeCore / EdgeUpdate install folders
-- Edge AppX and provisioned packages
-- User `AppData` Edge profile folders (optional skip)
-- Orphan uninstall registry entries (fixes “setup.exe not found” in Settings)
-- **Optional:** Edge WebView2 Runtime (`-RemoveWebView2`)
-
-## What it configures
-
-- Enables non-EU uninstall policies in `C:\Windows\System32\IntegratedServicesRegionPolicySet.json`
-- Sets `DoNotUpdateToEdgeWithChromium` and related keys to reduce automatic reinstall
-
----
-
-## Quick start (one line)
-
-**Review the script before running any remote code.**
-
-```powershell
-irm https://raw.githubusercontent.com/eunjunseo47/edge-remover/main/edge-remover.ps1 | iex
-```
-
-Or clone and run locally (recommended):
+Review the script on disk before executing anything with administrator privileges.
 
 ```powershell
 git clone https://github.com/eunjunseo47/edge-remover.git
@@ -67,15 +45,25 @@ powershell -ExecutionPolicy Bypass -File .\edge-remover.ps1
 
 Accept the **UAC (Administrator)** prompt when it appears.
 
+### Convenience one-liner (review first)
+
+Only use this if you have read the script on GitHub and trust the source:
+
+```powershell
+irm https://raw.githubusercontent.com/eunjunseo47/edge-remover/main/edge-remover.ps1 | iex
+```
+
+Running remote code with `irm | iex` carries inherent risk. Prefer cloning the repository when possible.
+
 ---
 
 ## Usage
 
 ```powershell
-# Remove Edge browser + Edge Update (keeps WebView2 for app compatibility)
+# Remove Edge browser + Edge Update (keeps WebView2 by default)
 .\edge-remover.ps1
 
-# Also remove WebView2 Runtime
+# Also remove WebView2 Runtime — RISKY: may break dependent apps
 .\edge-remover.ps1 -RemoveWebView2
 
 # No confirmation prompts
@@ -92,12 +80,36 @@ Accept the **UAC (Administrator)** prompt when it appears.
 
 | Parameter | Description |
 |-----------|-------------|
-| `-RemoveWebView2` | Also uninstall Edge WebView2 Runtime |
+| `-RemoveWebView2` | **Optional and risky.** Also uninstall Edge WebView2 Runtime. Many apps embed WebView2. |
 | `-SkipRegionPolicy` | Do not edit `IntegratedServicesRegionPolicySet.json` |
 | `-SkipReinstallBlock` | Do not write anti-reinstall registry keys |
 | `-SkipAppDataCleanup` | Do not delete `%LocalAppData%\Microsoft\Edge*` |
 | `-Force` | Skip interactive confirmation |
 | `-NoRebootPrompt` | Do not offer reboot at the end |
+
+### WebView2 removal warning
+
+By default, **WebView2 is kept** for application compatibility. Only pass `-RemoveWebView2` if you understand that installers, login flows, and desktop apps may stop working until WebView2 is reinstalled.
+
+---
+
+## What it removes
+
+- Microsoft Edge (Chromium) browser
+- Edge Update services (`edgeupdate`, `edgeupdatem`)
+- Edge scheduled tasks
+- Edge / EdgeCore / EdgeUpdate install folders
+- Edge AppX and provisioned packages
+- User `AppData` Edge profile folders (unless `-SkipAppDataCleanup`)
+- Orphan uninstall registry entries (fixes “setup.exe not found” in Settings)
+- **Optional:** Edge WebView2 Runtime (`-RemoveWebView2`)
+
+## What it configures
+
+- Enables non-EU uninstall policies in `C:\Windows\System32\IntegratedServicesRegionPolicySet.json`
+- Sets `DoNotUpdateToEdgeWithChromium` and EdgeUpdate policy keys using the correct product GUIDs:
+  - Edge Stable: `{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}`
+  - WebView2 (only when `-RemoveWebView2`): `{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}`
 
 ---
 
@@ -113,28 +125,96 @@ Accept the **UAC (Administrator)** prompt when it appears.
 
 ---
 
-## Reinstall Microsoft Edge later
+## Tested on
 
-If you need Edge back:
+| Environment | Result |
+|-------------|--------|
+| Windows 11 24H2 / 25H2 (x64), US region | Edge + WebView2 removed; orphan Settings entry cleaned |
+| Windows 10 22H2 (x64) | Expected to work; community reports welcome via Issues |
+| Windows 11 ARM64 | Not validated in CI — use at your own risk |
+| Windows S Mode | **Not supported** |
 
-1. Download the installer from Microsoft:  
-   https://www.microsoft.com/edge
+CI validates PowerShell syntax on `windows-latest` for every push and pull request.
+
+---
+
+## Known limitations
+
+- Does **not** disable all Windows telemetry — only removes Edge-related components.
+- **Enterprise / MDM** devices may ignore or revert local policy and registry changes.
+- **Windows Update** can reinstall Edge or restore the region policy JSON file.
+- **WebView2 removal** is optional because many applications depend on it.
+- Exit code **532** from `setup.exe` often means a **reboot is required** before uninstall completes.
+- The script makes **no network calls** during execution; only you choose whether to download it from GitHub.
+
+---
+
+## Restore / reinstall
+
+### Reinstall Microsoft Edge
+
+1. Download from Microsoft: https://www.microsoft.com/edge
 2. Or use winget:
-   ```powershell
-   winget install Microsoft.Edge
-   ```
-3. To restore WebView2 only (without the full browser):
-   ```powershell
-   winget install Microsoft.EdgeWebView2Runtime
-   ```
 
-To restore the original region policy file, use the backup created at:
-
+```powershell
+winget install Microsoft.Edge
 ```
+
+### Reinstall WebView2 only
+
+```powershell
+winget install Microsoft.EdgeWebView2Runtime
+```
+
+### Restore the region policy file
+
+The script saves a backup before editing:
+
+```text
 %TEMP%\IntegratedServicesRegionPolicySet.json.YYYYMMDD-HHMMSS.bak
 ```
 
-Copy it back to `C:\Windows\System32\IntegratedServicesRegionPolicySet.json` (requires Administrator + ownership change).
+Copy it back to `C:\Windows\System32\IntegratedServicesRegionPolicySet.json` (Administrator + ownership change required).
+
+---
+
+## Security note
+
+- **No data collection.** The script does not phone home, log telemetry, or upload files.
+- **No network activity** during script execution.
+- The only network interaction is if **you** choose to download the script (for example via `git clone` or `irm` from GitHub).
+- Read `edge-remover.ps1` before running it, especially with `irm | iex`.
+
+---
+
+## Troubleshooting
+
+### Exit code 532 from setup.exe
+
+Reboot the PC, then either:
+
+- Run `.\edge-remover.ps1` again, or
+- Use **Settings → Apps → Installed apps → Microsoft Edge → Uninstall**
+
+After the region policy patch, the Uninstall button should no longer be grayed out outside the EU.
+
+### Ghost entry in Settings (“setup.exe not found”)
+
+The files are already gone but Windows still lists Edge. Re-run the script — it removes orphan uninstall registry keys automatically. A reboot may also clear stale UI entries.
+
+### Access denied / TrustedInstaller
+
+Run PowerShell **as Administrator** and accept the UAC prompt. The script takes ownership of `IntegratedServicesRegionPolicySet.json` before editing. If access still fails, reboot into an admin account and retry.
+
+### Edge returned after Windows Update
+
+Windows Update may restore Edge or reset the policy JSON. Re-run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\edge-remover.ps1
+```
+
+Keep a copy of your patched JSON backup if Start menu web-search behavior changes after an update.
 
 ---
 
@@ -143,16 +223,16 @@ Copy it back to `C:\Windows\System32\IntegratedServicesRegionPolicySet.json` (re
 - Use **at your own risk**. Removing system components can affect Windows features, widgets, or apps that depend on Edge/WebView2.
 - This project is **not affiliated with Microsoft**.
 - **Read the script** before executing, especially with `irm | iex`.
-- Windows Update may **reinstall Edge** or **restore the policy JSON**; re-run this tool if needed.
-- Required Windows telemetry cannot be fully disabled by removing Edge alone.
+- Required Windows diagnostic data cannot be fully disabled by removing Edge alone.
 
 ---
 
 ## Repository layout
 
-```
+```text
 edge-remover/
-├── edge-remover.ps1   # Main remover script
+├── .github/workflows/powershell.yml
+├── edge-remover.ps1
 ├── README.md
 ├── LICENSE
 └── .gitignore

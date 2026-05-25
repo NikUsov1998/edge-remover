@@ -395,6 +395,10 @@ function Set-EdgeReinstallBlock {
 
     Write-Step 'Applying registry keys to discourage Edge reinstall via Windows Update...'
 
+    # Microsoft Edge Update application GUIDs (Stable vs WebView2 are separate products).
+    $edgeStableGuid = '{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}'
+    $webView2Guid = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+
     $edgeUpdateKey = 'HKLM:\SOFTWARE\Microsoft\EdgeUpdate'
     if (-not (Test-Path $edgeUpdateKey)) {
         New-Item -Path $edgeUpdateKey -Force | Out-Null
@@ -405,8 +409,22 @@ function Set-EdgeReinstallBlock {
     if (-not (Test-Path $policyKey)) {
         New-Item -Path $policyKey -Force | Out-Null
     }
+
     New-ItemProperty -Path $policyKey -Name 'InstallDefault' -Value 0 -PropertyType DWord -Force | Out-Null
-    New-ItemProperty -Path $policyKey -Name 'Install{56EB18F8-0083-4CEC-A6A2-578C038F1E7C}' -Value 0 -PropertyType DWord -Force | Out-Null
+    New-ItemProperty -Path $policyKey -Name 'UpdateDefault' -Value 0 -PropertyType DWord -Force | Out-Null
+
+    $productGuids = @($edgeStableGuid)
+    if ($RemoveWebView2) {
+        $productGuids += $webView2Guid
+    }
+
+    foreach ($guid in $productGuids) {
+        foreach ($prefix in @('Install', 'Update', 'Uninstall')) {
+            $valueName = '{0}{1}' -f $prefix, $guid
+            New-ItemProperty -Path $policyKey -Name $valueName -Value 0 -PropertyType DWord -Force | Out-Null
+            Write-Detail "Set $valueName = 0"
+        }
+    }
 
     Write-Ok 'Reinstall block registry keys written.'
 }

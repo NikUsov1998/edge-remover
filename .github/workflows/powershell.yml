@@ -1,0 +1,39 @@
+name: PowerShell Validation
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Parse edge-remover.ps1
+        shell: pwsh
+        run: |
+          $errors = $null
+          $null = [System.Management.Automation.PSParser]::Tokenize(
+            (Get-Content -Raw .\edge-remover.ps1),
+            [ref]$errors
+          )
+          if ($errors -and $errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+          Write-Host "edge-remover.ps1 parsed successfully."
+
+      - name: Run PSScriptAnalyzer (optional)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          if (Get-Module -ListAvailable -Name PSScriptAnalyzer) {
+            Import-Module PSScriptAnalyzer
+            Invoke-ScriptAnalyzer -Path .\edge-remover.ps1 -Severity Warning, Error
+          }
+          else {
+            Write-Host "PSScriptAnalyzer is not installed on this runner; skipping optional analysis."
+          }
